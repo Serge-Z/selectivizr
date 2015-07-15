@@ -461,7 +461,7 @@ References:
 		for (var c = 0; c < doc.styleSheets.length; c++) {
 			stylesheet = doc.styleSheets[c];
 			if (stylesheet.href != EMPTY_STRING && stylesheet.title === 'use-selectivizr') {
-				url = resolveUrl(stylesheet.href);
+				url = resolveUrl(stylesheet.href, undefined, true);
 				if (url) {
 					stylesheet.cssText = stylesheet["rawCssText"] = patchStyleSheet( parseStyleSheet( url ) );
 				}
