@@ -403,15 +403,33 @@ References:
 
 	// --[ loadStyleSheet() ]-----------------------------------------------
 	function loadStyleSheet( url, callback ) {
-        var request = createCORSRequest("get", url);
-        if (request){
-            request.onload = function(){
-                callback(null, request.responseText);
+        if (win.selectivizrUseCors) {
+            var request = createCORSRequest("get", url);
+            if (request){
+                request.onload = function(){
+                    callback(null, request.responseText);
+                };
+                request.onerror = function() {
+                    callback(request.responseText);
+                };
+                request.send();
+            }
+        } else {
+            var request = new XMLHttpRequest();
+            request.open('GET', url, true);
+
+            request.onreadystatechange = function() {
+                if (this.readyState === 4) {
+                    if (this.status >= 200 && this.status < 400) {
+                        callback(null, this.responseText);
+                    } else {
+                        callback(new Error(request.statusText));
+                    }
+                }
             };
-            request.onerror = function() {
-                callback(request.responseText);
-            };
+
             request.send();
+            request = null;
         }
 	};
 
