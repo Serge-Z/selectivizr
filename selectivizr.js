@@ -403,10 +403,6 @@ References:
 
 	// --[ loadStyleSheet() ]-----------------------------------------------
 	function loadStyleSheet( url, callback ) {
-		//xhr.open("GET", url, false);
-		//xhr.send();
-		//return (xhr.status==200) ? xhr.responseText : EMPTY_STRING;
-
         var request = createCORSRequest("get", url);
         if (request){
             request.onload = function(){
