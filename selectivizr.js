@@ -388,11 +388,35 @@ References:
 		}
 	};
 
+    function createCORSRequest(method, url){
+        var xhr = new XMLHttpRequest();
+        if ("withCredentials" in xhr){
+            xhr.open(method, url, true);
+        } else if (typeof XDomainRequest != "undefined"){
+            xhr = new XDomainRequest();
+            xhr.open(method, url);
+        } else {
+            xhr = null;
+        }
+        return xhr;
+    }
+
 	// --[ loadStyleSheet() ]-----------------------------------------------
-	function loadStyleSheet( url ) {
-		xhr.open("GET", url, false);
-		xhr.send();
-		return (xhr.status==200) ? xhr.responseText : EMPTY_STRING;
+	function loadStyleSheet( url, callback ) {
+		//xhr.open("GET", url, false);
+		//xhr.send();
+		//return (xhr.status==200) ? xhr.responseText : EMPTY_STRING;
+
+        var request = createCORSRequest("get", url);
+        if (request){
+            request.onload = function(){
+                callback(null, request.responseText);
+            };
+            request.onerror = function() {
+                callback(request.responseText);
+            };
+            request.send();
+        }
 	};
 
 	// --[ resolveUrl() ]---------------------------------------------------
@@ -440,19 +464,23 @@ References:
 	// Downloads the stylesheet specified by the URL, removes it's comments
 	// and recursivly replaces @import rules with their contents, ultimately
 	// returning the full cssText.
-	function parseStyleSheet( url ) {
+	function parseStyleSheet( url, callback ) {
 		if (url) {
-			return loadStyleSheet(url).replace(RE_COMMENT, EMPTY_STRING).
-			replace(RE_IMPORT, function( match, quoteChar, importUrl, quoteChar2, importUrl2, media ) {
-				var cssText = parseStyleSheet(resolveUrl(importUrl || importUrl2, url));
-				return (media) ? "@media " + media + " {" + cssText + "}" : cssText;
-			}).
-			replace(RE_ASSET_URL, function( match, isBehavior, quoteChar, assetUrl ) {
-				quoteChar = quoteChar || EMPTY_STRING;
-				return isBehavior ? match : " url(" + quoteChar + resolveUrl(assetUrl, url, true) + quoteChar + ") ";
-			});
-		}
-		return EMPTY_STRING;
+            loadStyleSheet(url, function (err, result) {
+                result = result.replace(RE_COMMENT, EMPTY_STRING).
+                    replace(RE_IMPORT, function( match, quoteChar, importUrl, quoteChar2, importUrl2, media ) {
+                        var cssText = parseStyleSheet(resolveUrl(importUrl || importUrl2, url));
+                        return (media) ? "@media " + media + " {" + cssText + "}" : cssText;
+                    }).
+                    replace(RE_ASSET_URL, function( match, isBehavior, quoteChar, assetUrl ) {
+                        quoteChar = quoteChar || EMPTY_STRING;
+                        return isBehavior ? match : " url(" + quoteChar + resolveUrl(assetUrl, url, true) + quoteChar + ") ";
+                    });
+                callback(null, result);
+            });
+		} else {
+		    callback(null, EMPTY_STRING);
+        }
 	};
 
 	// --[ getStyleSheets() ]-----------------------------------------------
@@ -463,7 +491,13 @@ References:
 			if (stylesheet.href != EMPTY_STRING && stylesheet.title === 'use-selectivizr') {
 				url = resolveUrl(stylesheet.href, undefined, true);
 				if (url) {
-					stylesheet.cssText = stylesheet["rawCssText"] = patchStyleSheet( parseStyleSheet( url ) );
+                    parseStyleSheet(url, function (err, result) {
+                        if (err) {
+                            throw err;
+                        }
+                        stylesheet.cssText = stylesheet["rawCssText"] = patchStyleSheet(result);
+                        chooseEngineAndCallFn(applyPatches);
+                    });
 				}
 			}
 		}
@@ -499,22 +533,25 @@ References:
 	var baseUrl = (baseTags.length > 0) ? baseTags[0].href : doc.location.href;
 	getStyleSheets();
 
+    function chooseEngineAndCallFn(callback) {
+        // Determine the "best fit" selector engine
+        for (var engine in selectorEngines) {
+            var members, member, context = win;
+            if (win[engine]) {
+                members = selectorEngines[engine].replace("*", engine).split(".");
+                while ((member = members.shift()) && (context = context[member])) {}
+                if (typeof context == "function") {
+                    selectorMethod = context;
+                    callback();
+                    return;
+                }
+            }
+        }
+    }
 	// Bind selectivizr to the ContentLoaded event.
-	ContentLoaded(win, function() {
-		// Determine the "best fit" selector engine
-		for (var engine in selectorEngines) {
-			var members, member, context = win;
-			if (win[engine]) {
-				members = selectorEngines[engine].replace("*", engine).split(".");
-				while ((member = members.shift()) && (context = context[member])) {}
-				if (typeof context == "function") {
-					selectorMethod = context;
-					init();
-					return;
-				}
-			}
-		}
-	});
+	ContentLoaded(win, function () {
+        chooseEngineAndCallFn(init);
+    });
 
 
 
